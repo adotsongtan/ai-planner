@@ -2,6 +2,6 @@
 [functions]
   directory = "netlify/functions"
 
-# 'analyze' 함수의 시간 제한을 25초로 늘립니다. (기본값 10초)
+# 'analyze' 함수의 시간 제한을 25초로 늘립니다.
 [functions.analyze]
   timeout = 25
