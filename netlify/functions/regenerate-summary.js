@@ -11,40 +11,33 @@ exports.handler = async function (event) {
             return { statusCode: 500, body: JSON.stringify({ message: 'API key is not set on the server.' }) };
         }
 
-        // AI에게 수정된 데이터를 보여주고, 총평만 다시 작성하도록 요청하는 프롬프트
-        const promptText = `
-너는 대한민국 최고의 입시 컨설턴트이자 데이터 분석가야.
-아래에 있는 확정된 주간 학습 데이터를 보고, 이 데이터를 기반으로 전문가 수준의 상세하고 깊이 있는 주간 학습 리포트 총평만을 작성해줘.
+        // AI에게 전달할 핵심 데이터 요약
+        const totalMinutes = Object.values(correctedData.subject_summary).reduce((sum, time) => sum + time, 0);
+        const dailyCount = Object.keys(correctedData.daily_summary).length;
+        const avgMinutes = dailyCount > 0 ? Math.round(totalMinutes / dailyCount) : 0;
 
-**[확정된 주간 학습 데이터]**
-${JSON.stringify(correctedData, null, 2)}
+        const summaryPrompt = `
+너는 학생의 마음을 잘 이해하는 따뜻한 학습 멘토야.
+아래의 핵심 데이터를 바탕으로, 학생을 격려하고 구체적인 조언을 해주는 상세한 주간 총평을 자연스러운 문체로 작성해줘.
 
-**[총평 작성 가이드라인]**
-1.  **반드시 위에 제공된 [확정된 주간 학습 데이터]의 수치만을 사용해서** 총평을 작성해야 해. 절대로 숫자를 꾸며내거나 틀리게 계산해서는 안 돼.
-2.  아래 목차와 질문에 맞춰, 각 항목을 상세하고 구체적으로 분석한 내용을 담은 긴 총평을 작성해줘.
----
-**[주간 학습 리포트]**
+[핵심 학습 데이터]
+- 주간 총 학습 시간: ${totalMinutes}분
+- 하루 평균 학습 시간: 약 ${avgMinutes}분
+- 과목별 학습 시간(분): ${JSON.stringify(correctedData.subject_summary)}
+- 요일별 학습 시간(분): ${JSON.stringify(correctedData.daily_summary)}
 
-**1. 총평 개요**
-이번 주 총 학습 시간과 하루 평균 학습 시간은 얼마였나요? 전반적인 학습 태도는 어땠나요?
-<br><br>
-**2. 잘한 점 (칭찬)**
-데이터를 분석했을 때, 가장 칭찬해주고 싶은 포인트는 무엇인가요?
-<br><br>
-**3. 개선할 점 (조언)**
-데이터를 분석했을 때, 다음 주에 개선하면 더 좋을 것 같은 아쉬운 점은 무엇인가요?
-<br><br>
-**4. 다음 주를 위한 구체적인 조언**
-위에서 지적한 개선점을 바탕으로, 다음 주에 실천할 수 있는 구체적인 행동 계획을 1~2가지 제안해주세요.
-<br><br>
-항상 응원하고 있습니다. 다음 주에는 더 성장한 모습으로 만나요! 🔥
----
+[총평 작성 가이드라인]
+1.  위에 제공된 핵심 데이터를 자연스럽게 문장에 녹여서 설명해줘.
+2.  잘한 점과 개선할 점을 구체적으로 언급해줘.
+3.  다음 주를 위한 실천 가능한 조언을 1~2가지 제안해줘.
+4.  전체적으로 매우 따뜻하고, 학생을 진심으로 응원하는 톤을 유지해줘.
+5.  문단 사이에는 <br><br>을 넣어 가독성을 높여줘.
 `;
 
         const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent?key=${apiKey}`;
         
         const payload = {
-            contents: [{ parts: [{ text: promptText }] }],
+            contents: [{ parts: [{ text: summaryPrompt }] }],
         };
 
         const geminiResponse = await fetch(apiUrl, {
