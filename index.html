@@ -162,7 +162,7 @@
         subject: subject,
         total_time_minutes: parseInt(data.subject_summary[subject], 10)
     }));
-    
+
     // --- 차트 및 테이블 그리기 ---
     const dailyCtx = document.getElementById('daily-chart').getContext('2d');
     if (dailyChartInstance) dailyChartInstance.destroy();
@@ -172,14 +172,8 @@
     if (subjectChartInstance) subjectChartInstance.destroy();
     subjectChartInstance = new Chart(subjectCtx, createChartConfig('doughnut', formattedSubjectData, 'subject', 'total_time_minutes', '%'));
     
-    resultTableBody.innerHTML = '';
-    let totalMinutes = 0;
-    formattedSubjectData.forEach(session => {
-        totalMinutes += session.total_time_minutes;
-    });
-    // 총합 계산은 여기서 하지만, 테이블 표시는 아래에서 함께 진행
-
-    // 테이블 다시 그리기 (총합까지 포함)
+    let totalMinutes = formattedSubjectData.reduce((sum, item) => sum + item.total_time_minutes, 0);
+    
     let tableHtml = '';
     formattedSubjectData.forEach(session => {
         tableHtml += `<tr><td class="p-2">${session.subject}</td><td class="p-2">${session.total_time_minutes}</td></tr>`;
@@ -187,21 +181,22 @@
     tableHtml += `<tr class="font-bold bg-gray-200"><td class="p-2 rounded-bl-lg">총합</td><td class="p-2 rounded-br-lg">${totalMinutes}</td></tr>`;
     resultTableBody.innerHTML = tableHtml;
 
+    // ★★★ 총평 객체를 HTML 문장으로 변환하는 부분 ★★★
+    let finalSummary = '';
+    const summaryData = data.weekly_summary;
 
-    // ★★★ 코드에서 직접 숫자 통계 생성 + AI 총평 조합 ★★★
-    // 1. 코드에서 정확한 숫자 통계 문장 생성
-    const avgMinutes = formattedDailyData.length > 0 ? Math.round(totalMinutes / formattedDailyData.length) : 0;
-    const statsSummary = `이번 주 총 학습 시간은 <strong>${totalMinutes}분</strong>이며, 하루 평균 약 <strong>${avgMinutes}분</strong>씩 학습했습니다.`;
-
-    // 2. AI가 보내준 감성 총평 가져오기
-    const aiQualitativeSummary = data.weekly_summary;
-
-    // 3. 숫자 통계와 감성 총평을 합쳐서 최종 결과물 만들기
-    const finalSummary = `<p>${statsSummary}</p><br><p>${aiQualitativeSummary}</p>`;
+    // 1. weekly_summary가 객체인지, 아니면 그냥 글자인지 확인
+    if (typeof summaryData === 'object' && summaryData !== null) {
+        // 객체라면, 각 항목(예: "1. 총평 개요", "2. 잘한 점")을 순서대로 가져와서 <br><br>로 연결
+        finalSummary = Object.values(summaryData).join('<br><br>');
+    } else {
+        // 만약 그냥 글자로 온다면, 그대로 사용
+        finalSummary = summaryData;
+    }
     
     summaryElement.innerHTML = finalSummary;
 }
-       // 여기에 붙여넣으세요!
+        
 function createChartConfig(type, data, labelKey, dataKey, unit) {
     const backgroundPlugin = {
         id: 'customCanvasBackgroundColor',
