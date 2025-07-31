@@ -17,7 +17,9 @@ exports.handler = async function (event) {
 
         const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent?key=${apiKey}`;
         
-        const promptText = `너는 스터디 플래너 분석 전문가야. 여러 장의 플래너 사진들을 보고, 다음 정보를 추출해서 JSON 형식으로 반환해줘.
+        const promptText = `너는 스터디 플래너 분석 전문가야. **가장 먼저, 입력된 이미지의 총 장 수를 세고, "총 N장의 플래너를 분석했습니다." 라는 문장으로 총평을 시작해줘. 반드시 모든 이미지를 분석해야 해.**
+
+여러 장의 플래너 사진들을 보고, 다음 정보를 추출해서 JSON 형식으로 반환해줘.
 
 **분석 규칙:**
 1.  색칠된 한 칸은 **정확히 10분**으로 계산해.
@@ -27,7 +29,7 @@ exports.handler = async function (event) {
 1.  'daily_summary': 요일별 총 공부 시간을 분 단위로 알려줘. ({"토": 190, "일": 200, ...} 형식)
 2.  'subject_summary': 과목별 주간 총 공부 시간을 분 단위로 알려줘. ({"영어": 830, "국어": 300, ...} 형식)
 3.  'weekly_summary': 위 계산 결과를 바탕으로, 따뜻하고 친절한 말투로 상세한 주간 총평을 자유롭게 작성해줘. 문단 사이에는 <br><br>을 넣어 가독성을 높여줘.`;
-
+        
         const parts = [{ text: promptText }];
         images.forEach(imgData => parts.push({ inlineData: { mimeType: "image/jpeg", data: imgData } }));
 
