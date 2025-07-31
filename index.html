@@ -148,21 +148,48 @@
             return await response.json();
         }
         function displayResults(data) {
-            const dailyCtx = document.getElementById('daily-chart').getContext('2d');
-            if (dailyChartInstance) dailyChartInstance.destroy();
-            dailyChartInstance = new Chart(dailyCtx, createChartConfig('bar', data.daily_summary, 'day', 'time_minutes', '분'));
-            const subjectCtx = document.getElementById('subject-chart').getContext('2d');
-            if (subjectChartInstance) subjectChartInstance.destroy();
-            subjectChartInstance = new Chart(subjectCtx, createChartConfig('doughnut', data.subject_summary, 'subject', 'total_time_minutes', '%'));
-            resultTableBody.innerHTML = '';
-            let totalMinutes = 0;
-            data.subject_summary.forEach(session => {
-                resultTableBody.innerHTML += `<tr><td class="p-2">${session.subject}</td><td class="p-2">${session.total_time_minutes}</td></tr>`;
-                totalMinutes += session.total_time_minutes;
-            });
-            resultTableBody.innerHTML += `<tr class="font-bold bg-gray-200"><td class="p-2 rounded-bl-lg">총합</td><td class="p-2 rounded-br-lg">${totalMinutes}</td></tr>`;
-            summaryElement.innerHTML = data.weekly_summary;
-        }
+    // ★★★ 디버깅을 위해 AI가 보낸 원본 데이터를 브라우저 콘솔에 출력합니다.
+    console.log("AI로부터 받은 데이터:", JSON.stringify(data, null, 2));
+
+    // 1. 요일별 차트 생성 전, 데이터가 배열인지 확인합니다.
+    if (Array.isArray(data.daily_summary)) {
+        const dailyCtx = document.getElementById('daily-chart').getContext('2d');
+        if (dailyChartInstance) dailyChartInstance.destroy();
+        dailyChartInstance = new Chart(dailyCtx, createChartConfig('bar', data.daily_summary, 'day', 'time_minutes', '분'));
+    } else {
+        console.error("'daily_summary' 데이터가 배열이 아닙니다:", data.daily_summary);
+        // 사용자에게 보여줄 에러 처리 (선택 사항)
+        document.getElementById('daily-chart').parentElement.innerHTML = '<p class="text-red-500 text-center">요일별 차트 데이터를 불러오는 데 실패했습니다.</p>';
+    }
+    
+    // 2. 과목별 차트 생성 전, 데이터가 배열인지 확인합니다.
+    if (Array.isArray(data.subject_summary)) {
+        const subjectCtx = document.getElementById('subject-chart').getContext('2d');
+        if (subjectChartInstance) subjectChartInstance.destroy();
+        subjectChartInstance = new Chart(subjectCtx, createChartConfig('doughnut', data.subject_summary, 'subject', 'total_time_minutes', '%'));
+        
+        // 3. 요약 테이블
+        resultTableBody.innerHTML = '';
+        let totalMinutes = 0;
+        data.subject_summary.forEach(session => {
+            resultTableBody.innerHTML += `<tr><td class="p-2">${session.subject}</td><td class="p-2">${session.total_time_minutes}</td></tr>`;
+            totalMinutes += session.total_time_minutes;
+        });
+        resultTableBody.innerHTML += `<tr class="font-bold bg-gray-200"><td class="p-2 rounded-bl-lg">총합</td><td class="p-2 rounded-br-lg">${totalMinutes}</td></tr>`;
+    } else {
+        console.error("'subject_summary' 데이터가 배열이 아닙니다:", data.subject_summary);
+        document.getElementById('subject-chart').parentElement.innerHTML = '<p class="text-red-500 text-center">과목별 차트 데이터를 불러오는 데 실패했습니다.</p>';
+        document.getElementById('result-table').innerHTML = ''; // 테이블 비우기
+    }
+    
+    // 4. 총평
+    if (data.weekly_summary && typeof data.weekly_summary === 'string') {
+        summaryElement.innerHTML = data.weekly_summary;
+    } else {
+        console.error("'weekly_summary' 데이터가 없거나 문자열이 아닙니다:", data.weekly_summary);
+        summaryElement.innerHTML = '<p class="text-red-500">총평을 불러오는 데 실패했습니다.</p>';
+    }
+}
         function createChartConfig(type, data, labelKey, dataKey, unit) {
             const backgroundPlugin = {
                 id: 'customCanvasBackgroundColor',
