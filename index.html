@@ -1,0 +1,246 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI 주간 학습 리포트</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.2.0"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Nanum+Square+Round:wght@400;700;800&display=swap');
+        body { font-family: 'Nanum Square Round', sans-serif; }
+        .loader { border: 5px solid #f3f3f3; border-top: 5px solid #3498db; border-radius: 50%; width: 50px; height: 50px; animation: spin 1s linear infinite; }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        #preview-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(100px, 1fr)); gap: 1rem; }
+        .preview-image-container { position: relative; width: 100%; padding-top: 100%; border-radius: 0.5rem; overflow: hidden; }
+        .preview-image { position: absolute; top: 0; left: 0; width: 100%; height: 100%; object-fit: cover; }
+        .btn { padding: 8px 16px; font-size: 14px; font-weight: 700; color: #fff; border: none; border-radius: 5px; cursor: pointer; transition: background-color 0.3s; margin-left: 8px; }
+        .copy-btn { background-color: #27ae60; } .copy-btn:hover { background-color: #229954; }
+        .download-btn { background-color: #3498db; } .download-btn:hover { background-color: #2980b9; }
+    </style>
+</head>
+<body class="bg-gray-100 flex items-center justify-center min-h-screen p-4">
+    <div class="w-full max-w-3xl bg-white rounded-2xl shadow-lg p-6 md:p-8">
+        <div class="text-center mb-6">
+            <h1 class="text-3xl font-extrabold text-gray-800">AI 주간 학습 리포트 🤖</h1>
+            <p class="text-gray-500 mt-2">일주일치 플래너 사진을 올리면 리포트를 생성해 드려요.</p>
+        </div>
+        <div class="mb-6">
+            <label for="image-upload" class="cursor-pointer block w-full border-2 border-dashed border-gray-300 rounded-lg p-8 text-center hover:bg-gray-50 transition-colors">
+                <div id="upload-prompt"><svg class="mx-auto h-12 w-12 text-gray-400" stroke="currentColor" fill="none" viewBox="0 0 48 48" aria-hidden="true"><path d="M28 8H12a4 4 0 00-4 4v20m32-12v8m0 0v8a4 4 0 01-4 4H12a4 4 0 01-4-4v-4m32-4l-3.172-3.172a4 4 0 00-5.656 0L28 28M8 32l9.172-9.172a4 4 0 015.656 0L28 28m0 0l4 4m4-24h8m-4-4v8" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" /></svg><p class="mt-2 text-sm text-gray-600">클릭해서 플래너 사진 여러 장 올리기</p><p class="text-xs text-gray-500">7일치 플래너를 한 번에 선택해주세요.</p></div>
+                <div id="preview-grid" class="hidden"></div>
+            </label>
+            <input id="image-upload" type="file" class="hidden" accept="image/*" multiple>
+        </div>
+        <button id="analyze-button" class="w-full bg-blue-500 text-white font-bold py-3 px-4 rounded-lg hover:bg-blue-600 transition-all disabled:bg-gray-300 disabled:cursor-not-allowed">AI 분석 시작!</button>
+        <div id="result-section" class="mt-8 hidden">
+            <div id="loader" class="flex flex-col items-center justify-center py-8"><div class="loader"></div><p class="mt-4 text-gray-600">AI가 플래너를 분석하고 있어요... 🧐</p></div>
+            <div id="result-content">
+                <div class="flex justify-between items-center mb-4">
+                    <h2 class="text-2xl font-extrabold text-gray-800">📊 주간 분석 결과</h2>
+                    <div id="export-buttons" class="hidden"><button class="btn copy-btn" onclick="exportReport('copy')">리포트 복사</button><button class="btn download-btn" onclick="exportReport('download')">리포트 다운로드</button></div>
+                </div>
+                <div id="report-body" class="p-6 bg-gray-50 rounded-lg">
+                    <div class="mb-8"><h3 class="font-bold mb-2 text-center text-lg">주간 총 공부 시간</h3><canvas id="daily-chart"></canvas></div>
+                    <div class="grid md:grid-cols-2 gap-8">
+                        <div><h3 class="font-bold mb-2 text-center text-lg">📚 주간 학습 요약</h3><table id="result-table" class="w-full text-sm mt-4"><thead class="text-left bg-gray-200"><tr><th class="p-2 rounded-tl-lg">과목</th><th class="p-2 rounded-tr-lg">총 시간(분)</th></tr></thead><tbody></tbody></table></div>
+                        <div><h3 class="font-bold mb-2 text-center text-lg">과목별 공부 비율</h3><canvas id="subject-chart"></canvas></div>
+                    </div>
+                    <div class="mt-8 bg-blue-50 border-l-4 border-blue-400 p-6 rounded-r-lg"><h3 class="font-bold text-blue-800 text-lg">✨ AI 주간 총평</h3><div id="summary" class="text-gray-700 mt-2"></div></div>
+                </div>
+            </div>
+        </div>
+        <div id="error-message" class="mt-4 text-center text-red-500 font-bold hidden p-4 bg-red-50 rounded-lg"></div>
+    </div>
+    <div id="copyModal" class="hidden fixed z-1000 left-0 top-0 w-full h-full overflow-auto bg-black bg-opacity-60 justify-center items-center">
+        <div class="bg-white p-5 rounded-lg text-center max-w-lg w-full">
+            <span id="closeModal" class="text-gray-400 float-right text-3xl font-bold cursor-pointer">&times;</span>
+            <h2 class="text-xl font-bold mb-4">이미지 복사하기</h2>
+            <p>아래 이미지를 마우스 오른쪽 버튼으로 클릭 후 '이미지 복사'를 선택하세요.</p>
+            <img id="modalImage" src="" alt="차트 이미지" class="max-w-full rounded-md mt-4 border"/>
+        </div>
+    </div>
+    <script>
+        const imageUpload = document.getElementById('image-upload');
+        const previewGrid = document.getElementById('preview-grid');
+        const uploadPrompt = document.getElementById('upload-prompt');
+        const analyzeButton = document.getElementById('analyze-button');
+        const resultSection = document.getElementById('result-section');
+        const loader = document.getElementById('loader');
+        const resultContent = document.getElementById('result-content');
+        const exportButtons = document.getElementById('export-buttons');
+        const resultTableBody = document.querySelector('#result-table tbody');
+        const summaryElement = document.getElementById('summary');
+        const errorMessage = document.getElementById('error-message');
+        const modal = document.getElementById('copyModal');
+        let imagesData = [];
+        let dailyChartInstance, subjectChartInstance;
+        imageUpload.addEventListener('change', handleFileSelect);
+        analyzeButton.addEventListener('click', handleAnalysis);
+        document.getElementById('closeModal').onclick = () => { modal.style.display = "none"; }
+        window.onclick = (event) => { if (event.target == modal) modal.style.display = "none"; }
+        function handleFileSelect(e) {
+            const files = e.target.files;
+            if (!files || files.length === 0) return;
+            previewGrid.innerHTML = '';
+            imagesData = [];
+            Array.from(files).forEach(file => {
+                const reader = new FileReader();
+                reader.onload = (event) => {
+                    const container = document.createElement('div');
+                    container.className = 'preview-image-container';
+                    const img = document.createElement('img');
+                    img.src = event.target.result;
+                    img.className = 'preview-image';
+                    container.appendChild(img);
+                    previewGrid.appendChild(container);
+                    imagesData.push(event.target.result.split(',')[1]);
+                };
+                reader.readAsDataURL(file);
+            });
+            previewGrid.classList.remove('hidden');
+            uploadPrompt.classList.add('hidden');
+            analyzeButton.disabled = false;
+        }
+        async function handleAnalysis() {
+            if (imagesData.length === 0) {
+                 alert('먼저 이미지를 업로드해주세요.');
+                 return;
+            }
+            setUIState('loading');
+            try {
+                const result = await callGeminiAPI(imagesData);
+                displayResults(result);
+                setUIState('success');
+            } catch (error) {
+                console.error('API 호출 오류:', error);
+                let msg = '분석 중 알 수 없는 오류가 발생했습니다. 다시 시도해주세요.';
+                if (error.message.includes("401") || error.message.includes("403")) {
+                    msg = `AI 서버 접근이 거부되었습니다. API 키가 올바르지 않거나 권한이 없는 것 같습니다.`;
+                }
+                setUIState('error', msg);
+            }
+        }
+        function setUIState(state, msg = '') {
+            resultContent.style.visibility = state === 'success' ? 'visible' : 'hidden';
+            loader.style.display = state === 'loading' ? 'flex' : 'none';
+            errorMessage.classList.toggle('hidden', state !== 'error');
+            errorMessage.innerHTML = msg;
+            resultSection.classList.toggle('hidden', state === 'idle');
+            analyzeButton.disabled = state === 'loading';
+            analyzeButton.innerText = state === 'loading' ? '분석 중...' : 'AI 분석 시작!';
+            exportButtons.classList.toggle('hidden', state !== 'success');
+        }
+        async function callGeminiAPI(base64ImageArray) {
+            const functionUrl = '/.netlify/functions/analyze';
+            const payload = { images: base64ImageArray };
+            const response = await fetch(functionUrl, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            });
+            if (!response.ok) {
+                const errorData = await response.json();
+                throw new Error(errorData.message || `서버 오류: ${response.status}`);
+            }
+            return await response.json();
+        }
+        function displayResults(data) {
+            const dailyCtx = document.getElementById('daily-chart').getContext('2d');
+            if (dailyChartInstance) dailyChartInstance.destroy();
+            dailyChartInstance = new Chart(dailyCtx, createChartConfig('bar', data.daily_summary, 'day', 'time_minutes', '분'));
+            const subjectCtx = document.getElementById('subject-chart').getContext('2d');
+            if (subjectChartInstance) subjectChartInstance.destroy();
+            subjectChartInstance = new Chart(subjectCtx, createChartConfig('doughnut', data.subject_summary, 'subject', 'total_time_minutes', '%'));
+            resultTableBody.innerHTML = '';
+            let totalMinutes = 0;
+            data.subject_summary.forEach(session => {
+                resultTableBody.innerHTML += `<tr><td class="p-2">${session.subject}</td><td class="p-2">${session.total_time_minutes}</td></tr>`;
+                totalMinutes += session.total_time_minutes;
+            });
+            resultTableBody.innerHTML += `<tr class="font-bold bg-gray-200"><td class="p-2 rounded-bl-lg">총합</td><td class="p-2 rounded-br-lg">${totalMinutes}</td></tr>`;
+            summaryElement.innerHTML = data.weekly_summary;
+        }
+        function createChartConfig(type, data, labelKey, dataKey, unit) {
+            const backgroundPlugin = {
+                id: 'customCanvasBackgroundColor',
+                beforeDraw: (chart) => {
+                    const { ctx } = chart;
+                    ctx.save();
+                    ctx.globalCompositeOperation = 'destination-over';
+                    ctx.fillStyle = 'white';
+                    ctx.fillRect(0, 0, chart.width, chart.height);
+                    ctx.restore();
+                }
+            };
+            const labels = data.map(item => item[labelKey]);
+            const chartData = data.map(item => item[dataKey]);
+            const config = {
+                type: type,
+                data: {
+                    labels: labels,
+                    datasets: [{ data: chartData, backgroundColor: ['rgba(54, 162, 235, 0.8)', 'rgba(255, 99, 132, 0.8)', 'rgba(75, 192, 192, 0.8)', 'rgba(255, 206, 86, 0.8)', 'rgba(153, 102, 255, 0.8)'], hoverOffset: 4 }]
+                },
+                options: {
+                    responsive: true,
+                    plugins: {
+                        legend: { display: type === 'doughnut' },
+                        datalabels: {
+                            formatter: (value, ctx) => {
+                                if (unit === '%') {
+                                    const sum = ctx.chart.data.datasets[0].data.reduce((a, b) => a + b, 0);
+                                    return sum === 0 ? '0%' : ((value * 100) / sum).toFixed(1) + "%";
+                                }
+                                return value + '분';
+                            },
+                            color: '#fff', font: { weight: 'bold' }
+                        }
+                    }
+                },
+                plugins: [ChartDataLabels, backgroundPlugin]
+            };
+            if (type === 'bar') {
+                config.options.scales = { y: { beginAtZero: true } };
+                config.options.plugins.legend.display = false;
+            }
+            return config;
+        }
+        async function exportReport(action) {
+            const reportBody = document.getElementById('report-body');
+            const canvas = await html2canvas(reportBody, {
+                onclone: (document) => {
+                    Array.from(document.querySelectorAll('canvas')).forEach(canvas => {
+                        const chartInstance = Chart.getChart(canvas.id);
+                        if (chartInstance) {
+                            const dataUrl = chartInstance.toBase64Image();
+                            const img = new Image();
+                            img.src = dataUrl;
+                            img.style.width = canvas.style.width;
+                            img.style.height = canvas.style.height;
+                            canvas.parentNode.replaceChild(img, canvas);
+                        }
+                    });
+                },
+                backgroundColor: '#f9fafb'
+            });
+            const dataUrl = canvas.toDataURL('image/png');
+            if (action === 'download') {
+                const link = document.createElement('a');
+                link.href = dataUrl;
+                link.download = '주간_학습_리포트.png';
+                link.click();
+            } else if (action === 'copy') {
+                openCopyModalWithDataUrl(dataUrl);
+            }
+        }
+        function openCopyModalWithDataUrl(dataUrl) {
+            document.getElementById('modalImage').src = dataUrl;
+            modal.style.display = "flex";
+        }
+        analyzeButton.disabled = true;
+        setUIState('idle');
+    </script>
+</body>
+</html>
