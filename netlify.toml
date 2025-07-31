@@ -1,2 +1,7 @@
+# Netlify에게 함수 폴더 위치를 알려줍니다.
 [functions]
   directory = "netlify/functions"
+
+# 'analyze' 함수의 시간 제한을 25초로 늘립니다. (기본값 10초)
+[functions.analyze]
+  timeout = 25
