@@ -92,7 +92,6 @@
     </div>
 
     <script>
-        // 전역 변수 선언
         const imageUpload = document.getElementById('image-upload');
         const previewGrid = document.getElementById('preview-grid');
         const uploadPrompt = document.getElementById('upload-prompt');
@@ -114,16 +113,14 @@
         let dailyChartInstance, subjectChartInstance;
         let currentData = null;
 
-        // --- 이벤트 리스너 ---
         imageUpload.addEventListener('change', handleFileSelect);
         analyzeButton.addEventListener('click', handleAnalysis);
         updateReportButton.addEventListener('click', updateReportFromInputs); 
         copySummaryButton.addEventListener('click', copySummaryText); 
-        accordionHeader.addEventListener('click', toggleAccordion); // ★★★ 아코디언 토글 이벤트
+        accordionHeader.addEventListener('click', toggleAccordion);
         document.getElementById('closeModal').onclick = () => { modal.style.display = "none"; };
         window.onclick = (event) => { if (event.target == modal) modal.style.display = "none"; };
 
-        // --- 핵심 기능 함수 ---
         function handleFileSelect(e) {
             const files = e.target.files;
             if (!files || files.length === 0) return;
@@ -199,21 +196,28 @@
                 correctedDailySummary[day] = parseInt(input.value, 10) || 0;
             });
 
-            const instantlyUpdatedData = { ...currentData, subject_summary: correctedSubjectSummary, daily_summary: correctedDailySummary };
-            displayResults(instantlyUpdatedData, false);
+            const updatedDataForCharts = { ...currentData, subject_summary: correctedSubjectSummary, daily_summary: correctedDailySummary };
+            displayResults(updatedDataForCharts, false);
 
             try {
                 const response = await fetch('/.netlify/functions/regenerate-summary', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(instantlyUpdatedData)
+                    body: JSON.stringify(updatedDataForCharts)
                 });
                 if (!response.ok) throw new Error('총평 재작성에 실패했습니다.');
                 
                 const { weekly_summary } = await response.json();
+                
+                // ★★★ 수정된 부분 시작 ★★★
+                // 새로 받은 총평으로 현재 데이터 객체를 업데이트
                 currentData.weekly_summary = weekly_summary;
-                summaryElement.innerHTML = weekly_summary;
+                // 전체 데이터를 displayResults에 넘겨서 총평까지 다시 그리도록 함
+                displayResults(currentData, true); 
+                // ★★★ 수정된 부분 끝 ★★★
+                
                 alert('리포트가 수정된 내용으로 업데이트되었습니다!');
+
             } catch (error) {
                 console.error("총평 업데이트 오류:", error);
                 alert(error.message);
@@ -246,11 +250,17 @@
             resultTableBody.innerHTML = tableHtml;
 
             if (isFullUpdate) {
-                summaryElement.innerHTML = data.weekly_summary;
+                let finalSummary = '';
+                const summaryData = data.weekly_summary;
+                if (typeof summaryData === 'object' && summaryData !== null) {
+                    finalSummary = Object.values(summaryData).join('<br><br>');
+                } else {
+                    finalSummary = summaryData;
+                }
+                summaryElement.innerHTML = finalSummary;
             }
         }
 
-        // --- 기타 유틸리티 함수 ---
         function toggleAccordion() {
             accordionContent.classList.toggle('hidden');
             accordionHeader.classList.toggle('open');
@@ -381,7 +391,6 @@
             modal.style.display = "flex";
         }
 
-        // 초기 상태 설정
         analyzeButton.disabled = true;
     </script>
 </body>
