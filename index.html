@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>📊AI 주간 학습 리포트📊</title>
+    <title>🤖AI 주간 학습 리포트🤖</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.2.0"></script>
@@ -19,6 +19,8 @@
         .btn { padding: 8px 16px; font-size: 14px; font-weight: 700; color: #fff; border: none; border-radius: 5px; cursor: pointer; transition: background-color 0.3s; margin-left: 8px; }
         .copy-btn { background-color: #27ae60; } .copy-btn:hover { background-color: #229954; }
         .download-btn { background-color: #3498db; } .download-btn:hover { background-color: #2980b9; }
+        .accordion-header svg { transition: transform 0.3s; }
+        .accordion-header.open svg { transform: rotate(180deg); }
     </style>
 </head>
 <body class="bg-gray-100 flex items-center justify-center min-h-screen p-4">
@@ -37,19 +39,19 @@
             <input id="image-upload" type="file" class="hidden" accept="image/*" multiple>
         </div>
 
-        <button id="analyze-button" class="w-full bg-blue-500 text-white font-bold py-3 px-4 rounded-lg hover:bg-blue-600 transition-all disabled:bg-gray-300 disabled:cursor-not-allowed">
-            AI 분석 시작!
-        </button>
+        <button id="analyze-button" class="w-full bg-blue-500 text-white font-bold py-3 px-4 rounded-lg hover:bg-blue-600 transition-all disabled:bg-gray-300 disabled:cursor-not-allowed">AI 분석 시작!</button>
 
         <div id="result-container" class="mt-8 hidden">
-            <div id="verification-section" class="mb-8">
-                <h2 class="text-2xl font-extrabold text-gray-800 mb-4">🤖 AI 분석 결과 (검토 및 수정)</h2>
-                <p class="text-gray-600 mb-6">AI가 분석한 시간입니다. 실제와 다른 부분이 있다면 직접 수정하고 아래 '수정사항 반영하기' 버튼을 눌러주세요.</p>
-                <div id="verification-form" class="space-y-4 p-4 bg-gray-50 rounded-lg grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-4">
-                    </div>
-                <button id="update-report-button" class="w-full mt-6 bg-green-500 text-white font-bold py-3 px-4 rounded-lg hover:bg-green-600 transition-all">
-                    수정사항 반영하기
-                </button>
+            <div id="verification-accordion" class="mb-8 border rounded-lg">
+                <div id="accordion-header" class="accordion-header p-4 flex justify-between items-center cursor-pointer bg-gray-100 hover:bg-gray-200 transition-colors">
+                    <h2 class="text-xl font-extrabold text-gray-800">🤖 AI 분석 결과 (검토 및 수정)</h2>
+                    <svg class="w-6 h-6 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+                </div>
+                <div id="accordion-content" class="hidden p-4 border-t">
+                    <p class="text-gray-600 mb-6">AI가 분석한 시간입니다. 실제와 다른 부분이 있다면 직접 수정하고 아래 '수정사항 반영하기' 버튼을 눌러주세요.</p>
+                    <div id="verification-form" class="space-y-4 grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-4"></div>
+                    <button id="update-report-button" class="w-full mt-6 bg-green-500 text-white font-bold py-3 px-4 rounded-lg hover:bg-green-600 transition-all">수정사항 반영하기</button>
+                </div>
             </div>
 
             <div id="result-content">
@@ -65,7 +67,6 @@
                             <div><h3 class="font-bold mb-2 text-center text-lg">과목별 공부 비율</h3><canvas id="subject-chart"></canvas></div>
                         </div>
                     </div>
-
                     <div class="mt-8 bg-blue-50 border-l-4 border-blue-400 p-6 rounded-r-lg">
                         <div class="flex justify-between items-center mb-2">
                             <h3 class="font-bold text-blue-800 text-lg">✨ AI 주간 총평</h3>
@@ -96,35 +97,33 @@
         const previewGrid = document.getElementById('preview-grid');
         const uploadPrompt = document.getElementById('upload-prompt');
         const analyzeButton = document.getElementById('analyze-button');
-        
         const loader = document.getElementById('loader');
         const errorMessage = document.getElementById('error-message');
-
         const resultContainer = document.getElementById('result-container');
         const verificationForm = document.getElementById('verification-form');
         const updateReportButton = document.getElementById('update-report-button');
-
+        const accordionHeader = document.getElementById('accordion-header');
+        const accordionContent = document.getElementById('accordion-content');
         const resultContent = document.getElementById('result-content');
         const resultTableBody = document.querySelector('#result-table tbody');
         const summaryElement = document.getElementById('summary');
         const copySummaryButton = document.getElementById('copy-summary-button');
-        
         const modal = document.getElementById('copyModal');
 
         let imagesData = [];
         let dailyChartInstance, subjectChartInstance;
-        let currentData = null; // ★★★ aiData -> currentData 로 이름 변경
+        let currentData = null;
 
         // --- 이벤트 리스너 ---
         imageUpload.addEventListener('change', handleFileSelect);
         analyzeButton.addEventListener('click', handleAnalysis);
         updateReportButton.addEventListener('click', updateReportFromInputs); 
         copySummaryButton.addEventListener('click', copySummaryText); 
+        accordionHeader.addEventListener('click', toggleAccordion); // ★★★ 아코디언 토글 이벤트
         document.getElementById('closeModal').onclick = () => { modal.style.display = "none"; };
         window.onclick = (event) => { if (event.target == modal) modal.style.display = "none"; };
 
         // --- 핵심 기능 함수 ---
-
         function handleFileSelect(e) {
             const files = e.target.files;
             if (!files || files.length === 0) return;
@@ -170,30 +169,18 @@
         function populateVerificationForm(data) {
             let subjectHtml = '<div><h3 class="font-bold text-lg mb-2 text-gray-800">과목별 시간 (분)</h3>';
             for (const subject in data.subject_summary) {
-                subjectHtml += `
-                    <div class="flex items-center justify-between py-2 border-b last:border-b-0">
-                        <label for="verify-subject-${subject}" class="text-gray-700 font-semibold">${subject}</label>
-                        <input type="number" id="verify-subject-${subject}" class="w-24 text-right p-1 border rounded" value="${data.subject_summary[subject]}">
-                    </div>
-                `;
+                subjectHtml += `<div class="flex items-center justify-between py-2 border-b last:border-b-0"><label for="verify-subject-${subject}" class="text-gray-700 font-semibold">${subject}</label><input type="number" id="verify-subject-${subject}" class="w-24 text-right p-1 border rounded" value="${data.subject_summary[subject]}"></div>`;
             }
             subjectHtml += '</div>';
             
             let dailyHtml = '<div><h3 class="font-bold text-lg mb-2 text-gray-800">요일별 시간 (분)</h3>';
             for (const day in data.daily_summary) {
-                dailyHtml += `
-                    <div class="flex items-center justify-between py-2 border-b last:border-b-0">
-                        <label for="verify-day-${day}" class="text-gray-700 font-semibold">${day}</label>
-                        <input type="number" id="verify-day-${day}" class="w-24 text-right p-1 border rounded" value="${data.daily_summary[day]}">
-                    </div>
-                `;
+                dailyHtml += `<div class="flex items-center justify-between py-2 border-b last:border-b-0"><label for="verify-day-${day}" class="text-gray-700 font-semibold">${day}</label><input type="number" id="verify-day-${day}" class="w-24 text-right p-1 border rounded" value="${data.daily_summary[day]}"></div>`;
             }
             dailyHtml += '</div>';
-
             verificationForm.innerHTML = subjectHtml + dailyHtml;
         }
 
-        // ★★★ '수정사항 반영' 버튼의 새 로직 ★★★
         async function updateReportFromInputs() {
             updateReportButton.disabled = true;
             updateReportButton.innerText = '총평 업데이트 중...';
@@ -212,16 +199,10 @@
                 correctedDailySummary[day] = parseInt(input.value, 10) || 0;
             });
 
-            // 먼저 차트와 표는 즉시 업데이트
-            const instantlyUpdatedData = {
-                ...currentData,
-                subject_summary: correctedSubjectSummary,
-                daily_summary: correctedDailySummary
-            };
-            displayResults(instantlyUpdatedData, false); // 총평 부분 제외하고 업데이트
+            const instantlyUpdatedData = { ...currentData, subject_summary: correctedSubjectSummary, daily_summary: correctedDailySummary };
+            displayResults(instantlyUpdatedData, false);
 
             try {
-                // 새로운 서버 함수를 호출해서 총평만 다시 받아옴
                 const response = await fetch('/.netlify/functions/regenerate-summary', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
@@ -230,11 +211,9 @@
                 if (!response.ok) throw new Error('총평 재작성에 실패했습니다.');
                 
                 const { weekly_summary } = await response.json();
-
-                currentData.weekly_summary = weekly_summary; // 새로 받은 총평으로 교체
-                summaryElement.innerHTML = weekly_summary; // 화면에 새 총평 표시
+                currentData.weekly_summary = weekly_summary;
+                summaryElement.innerHTML = weekly_summary;
                 alert('리포트가 수정된 내용으로 업데이트되었습니다!');
-
             } catch (error) {
                 console.error("총평 업데이트 오류:", error);
                 alert(error.message);
@@ -244,32 +223,21 @@
             }
         }
 
-        // isFullUpdate 파라미터 추가
         function displayResults(data, isFullUpdate = true) {
-            console.log("리포트 생성용 데이터:", JSON.stringify(data, null, 2));
-
             const dailyKeys = Object.keys(data.daily_summary);
-            const formattedDailyData = dailyKeys.map(day => ({
-                day: day,
-                time_minutes: parseInt(data.daily_summary[day], 10)
-            }));
-
+            const formattedDailyData = dailyKeys.map(day => ({ day: day, time_minutes: parseInt(data.daily_summary[day], 10) }));
             const subjectKeys = Object.keys(data.subject_summary);
-            const formattedSubjectData = subjectKeys.map(subject => ({
-                subject: subject,
-                total_time_minutes: parseInt(data.subject_summary[subject], 10)
-            }));
+            const formattedSubjectData = subjectKeys.map(subject => ({ subject: subject, total_time_minutes: parseInt(data.subject_summary[subject], 10) }));
             
-            const dailyCtx = document.getElementById('daily-chart').getContext('2d');
             if (dailyChartInstance) dailyChartInstance.destroy();
+            const dailyCtx = document.getElementById('daily-chart').getContext('2d');
             dailyChartInstance = new Chart(dailyCtx, createChartConfig('bar', formattedDailyData, 'day', 'time_minutes', '분'));
 
-            const subjectCtx = document.getElementById('subject-chart').getContext('2d');
             if (subjectChartInstance) subjectChartInstance.destroy();
+            const subjectCtx = document.getElementById('subject-chart').getContext('2d');
             subjectChartInstance = new Chart(subjectCtx, createChartConfig('doughnut', formattedSubjectData, 'subject', 'total_time_minutes', '%'));
             
             let totalMinutes = formattedSubjectData.reduce((sum, item) => sum + item.total_time_minutes, 0);
-            
             let tableHtml = '';
             formattedSubjectData.forEach(session => {
                 tableHtml += `<tr><td class="p-2">${session.subject}</td><td class="p-2">${session.total_time_minutes}</td></tr>`;
@@ -277,22 +245,16 @@
             tableHtml += `<tr class="font-bold bg-gray-200"><td class="p-2 rounded-bl-lg">총합</td><td class="p-2 rounded-br-lg">${totalMinutes}</td></tr>`;
             resultTableBody.innerHTML = tableHtml;
 
-            // 최초 로드 시에만 총평을 그림
             if (isFullUpdate) {
-                let finalSummary = '';
-                const summaryData = data.weekly_summary;
-
-                if (typeof summaryData === 'object' && summaryData !== null) {
-                    finalSummary = Object.values(summaryData).join('<br><br>');
-                } else {
-                    finalSummary = summaryData;
-                }
-                
-                summaryElement.innerHTML = finalSummary;
+                summaryElement.innerHTML = data.weekly_summary;
             }
         }
 
         // --- 기타 유틸리티 함수 ---
+        function toggleAccordion() {
+            accordionContent.classList.toggle('hidden');
+            accordionHeader.classList.toggle('open');
+        }
 
         function copySummaryText() {
             const textToCopy = summaryElement.innerText;
