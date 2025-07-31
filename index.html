@@ -162,7 +162,7 @@
         subject: subject,
         total_time_minutes: parseInt(data.subject_summary[subject], 10)
     }));
-
+    
     // --- 차트 및 테이블 그리기 ---
     const dailyCtx = document.getElementById('daily-chart').getContext('2d');
     if (dailyChartInstance) dailyChartInstance.destroy();
@@ -175,33 +175,31 @@
     resultTableBody.innerHTML = '';
     let totalMinutes = 0;
     formattedSubjectData.forEach(session => {
-        resultTableBody.innerHTML += `<tr><td class="p-2">${session.subject}</td><td class="p-2">${session.total_time_minutes}</td></tr>`;
         totalMinutes += session.total_time_minutes;
     });
-    resultTableBody.innerHTML += `<tr class="font-bold bg-gray-200"><td class="p-2 rounded-bl-lg">총합</td><td class="p-2 rounded-br-lg">${totalMinutes}</td></tr>`;
-    
+    // 총합 계산은 여기서 하지만, 테이블 표시는 아래에서 함께 진행
 
-    // ★★★ 총평 템플릿에 실제 데이터 채워넣기 시작 ★★★
-    let summaryTemplate = data.weekly_summary;
+    // 테이블 다시 그리기 (총합까지 포함)
+    let tableHtml = '';
+    formattedSubjectData.forEach(session => {
+        tableHtml += `<tr><td class="p-2">${session.subject}</td><td class="p-2">${session.total_time_minutes}</td></tr>`;
+    });
+    tableHtml += `<tr class="font-bold bg-gray-200"><td class="p-2 rounded-bl-lg">총합</td><td class="p-2 rounded-br-lg">${totalMinutes}</td></tr>`;
+    resultTableBody.innerHTML = tableHtml;
 
-    // 1. 총 시간 및 평균 시간 계산
+
+    // ★★★ 코드에서 직접 숫자 통계 생성 + AI 총평 조합 ★★★
+    // 1. 코드에서 정확한 숫자 통계 문장 생성
     const avgMinutes = formattedDailyData.length > 0 ? Math.round(totalMinutes / formattedDailyData.length) : 0;
+    const statsSummary = `이번 주 총 학습 시간은 <strong>${totalMinutes}분</strong>이며, 하루 평균 약 <strong>${avgMinutes}분</strong>씩 학습했습니다.`;
 
-    // 2. 과목별 상세 정보(이름, 퍼센트, 이모티콘) 문자열 생성
-    const subjectDetailsString = formattedSubjectData.map(item => {
-        const percentage = totalMinutes > 0 ? ((item.total_time_minutes / totalMinutes) * 100).toFixed(0) : 0;
-        const emojiMap = { '영어': '🔠', '국어': '📚', '수학': '🧮', '과탐': '🧪', '사탐': '🌍' };
-        return `${item.subject}(${percentage}%) ${emojiMap[item.subject] || ''}`;
-    }).join(', ');
+    // 2. AI가 보내준 감성 총평 가져오기
+    const aiQualitativeSummary = data.weekly_summary;
 
-    // 3. 템플릿의 [PLACEHOLDER]를 실제 값으로 교체
-    let finalSummary = summaryTemplate
-        .replace('[TOTAL_TIME]', totalMinutes)
-        .replace('[AVG_TIME]', avgMinutes)
-        .replace('[SUBJECT_DETAILS]', subjectDetailsString);
+    // 3. 숫자 통계와 감성 총평을 합쳐서 최종 결과물 만들기
+    const finalSummary = `<p>${statsSummary}</p><br><p>${aiQualitativeSummary}</p>`;
     
     summaryElement.innerHTML = finalSummary;
-    // ★★★ 총평 채워넣기 끝 ★★★
 }
        // 여기에 붙여넣으세요!
 function createChartConfig(type, data, labelKey, dataKey, unit) {
