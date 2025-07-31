@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AI 주간 학습 리포트</title>
+    <title>📈AI 주간 학습 리포트📈</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.2.0"></script>
@@ -41,6 +41,18 @@
             AI 분석 시작!
         </button>
 
+        <div id="verification-section" class="mt-8 hidden">
+            <h2 class="text-2xl font-extrabold text-gray-800 mb-4">🤖 AI 분석 결과 (검토 및 수정)</h2>
+            <p class="text-gray-600 mb-6">AI가 분석한 시간입니다. 실제와 다른 부분이 있다면 직접 수정하고 '리포트 생성' 버튼을 눌러주세요.</p>
+            
+            <div id="verification-form" class="space-y-4">
+                </div>
+
+            <button id="generate-report-button" class="w-full mt-6 bg-green-500 text-white font-bold py-3 px-4 rounded-lg hover:bg-green-600 transition-all">
+                이 내용으로 리포트 생성
+            </button>
+        </div>
+
         <div id="result-section" class="mt-8 hidden">
             <div id="loader" class="flex flex-col items-center justify-center py-8"><div class="loader"></div><p class="mt-4 text-gray-600">AI가 플래너를 분석하고 있어요... 🧐</p></div>
             <div id="result-content" class="hidden">
@@ -54,7 +66,13 @@
                         <div><h3 class="font-bold mb-2 text-center text-lg">📚 주간 학습 요약</h3><table id="result-table" class="w-full text-sm mt-4"><thead class="text-left bg-gray-200"><tr><th class="p-2 rounded-tl-lg">과목</th><th class="p-2 rounded-tr-lg">총 시간(분)</th></tr></thead><tbody></tbody></table></div>
                         <div><h3 class="font-bold mb-2 text-center text-lg">과목별 공부 비율</h3><canvas id="subject-chart"></canvas></div>
                     </div>
-                    <div class="mt-8 bg-blue-50 border-l-4 border-blue-400 p-6 rounded-r-lg"><h3 class="font-bold text-blue-800 text-lg">✨ AI 주간 총평</h3><div id="summary" class="text-gray-700 mt-2 leading-relaxed"></div></div>
+                    <div class="mt-8 bg-blue-50 border-l-4 border-blue-400 p-6 rounded-r-lg">
+                        <div class="flex justify-between items-center mb-2">
+                            <h3 class="font-bold text-blue-800 text-lg">✨ AI 주간 총평</h3>
+                            <button id="copy-summary-button" class="text-xs bg-gray-300 hover:bg-gray-400 text-gray-800 font-semibold py-1 px-2 rounded">내용 복사</button>
+                        </div>
+                        <div id="summary" class="text-gray-700 mt-2 leading-relaxed"></div>
+                    </div>
                 </div>
             </div>
         </div>
@@ -71,26 +89,40 @@
     </div>
 
     <script>
+        // 전역 변수 선언
         const imageUpload = document.getElementById('image-upload');
         const previewGrid = document.getElementById('preview-grid');
         const uploadPrompt = document.getElementById('upload-prompt');
         const analyzeButton = document.getElementById('analyze-button');
-        const resultSection = document.getElementById('result-section');
+        
         const loader = document.getElementById('loader');
+        const errorMessage = document.getElementById('error-message');
+
+        const verificationSection = document.getElementById('verification-section');
+        const verificationForm = document.getElementById('verification-form');
+        const generateReportButton = document.getElementById('generate-report-button');
+
+        const resultSection = document.getElementById('result-section');
         const resultContent = document.getElementById('result-content');
-        const exportButtons = document.getElementById('export-buttons');
         const resultTableBody = document.querySelector('#result-table tbody');
         const summaryElement = document.getElementById('summary');
-        const errorMessage = document.getElementById('error-message');
+        const copySummaryButton = document.getElementById('copy-summary-button');
+        
         const modal = document.getElementById('copyModal');
 
         let imagesData = [];
         let dailyChartInstance, subjectChartInstance;
+        let finalAiData = null;
 
+        // --- 이벤트 리스너 ---
         imageUpload.addEventListener('change', handleFileSelect);
         analyzeButton.addEventListener('click', handleAnalysis);
-        document.getElementById('closeModal').onclick = () => { modal.style.display = "none"; }
-        window.onclick = (event) => { if (event.target == modal) modal.style.display = "none"; }
+        generateReportButton.addEventListener('click', handleReportGeneration);
+        copySummaryButton.addEventListener('click', copySummaryText); // 총평 복사 버튼 이벤트
+        document.getElementById('closeModal').onclick = () => { modal.style.display = "none"; };
+        window.onclick = (event) => { if (event.target == modal) modal.style.display = "none"; };
+
+        // --- 핵심 기능 함수 ---
 
         function handleFileSelect(e) {
             const files = e.target.files;
@@ -125,41 +157,48 @@
             setUIState('loading');
             try {
                 const result = await callGeminiAPI(imagesData);
-                displayResults(result);
-                setUIState('success');
+                finalAiData = result; 
+                populateVerificationForm(result); 
+                setUIState('verifying');
             } catch (error) {
                 console.error('API 호출 오류:', error);
                 setUIState('error', error.message);
             }
         }
-
-        function setUIState(state, msg = '') {
-            resultContent.classList.toggle('hidden', state !== 'success');
-            loader.style.display = state === 'loading' ? 'flex' : 'none';
-            errorMessage.classList.toggle('hidden', state !== 'error');
-            errorMessage.innerHTML = msg;
-            resultSection.classList.toggle('hidden', state === 'idle');
-            analyzeButton.disabled = state === 'loading';
-            analyzeButton.innerText = state === 'loading' ? '분석 중...' : 'AI 분석 시작!';
+        
+        function populateVerificationForm(data) {
+            let formHtml = '<div><h3 class="font-bold text-lg mb-2">과목별 시간 (분)</h3>';
+            for (const subject in data.subject_summary) {
+                formHtml += `
+                    <div class="flex items-center justify-between py-2 border-b">
+                        <label for="verify-${subject}" class="text-gray-700 font-semibold">${subject}</label>
+                        <input type="number" id="verify-${subject}" class="w-24 text-right p-1 border rounded" value="${data.subject_summary[subject]}">
+                    </div>
+                `;
+            }
+            formHtml += '</div>';
+            verificationForm.innerHTML = formHtml;
         }
 
-        async function callGeminiAPI(base64ImageArray) {
-            const functionUrl = '/.netlify/functions/analyze';
-            const payload = { images: base64ImageArray };
-            const response = await fetch(functionUrl, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(payload)
+        function handleReportGeneration() {
+            const correctedSubjectSummary = {};
+            const inputs = verificationForm.querySelectorAll('input');
+            inputs.forEach(input => {
+                const subject = input.id.replace('verify-', '');
+                correctedSubjectSummary[subject] = parseInt(input.value, 10) || 0;
             });
-            if (!response.ok) {
-                const errorData = await response.json();
-                throw new Error(errorData.message || `서버 오류: ${response.status}`);
-            }
-            return await response.json();
+            
+            const finalData = {
+                ...finalAiData,
+                subject_summary: correctedSubjectSummary
+            };
+
+            displayResults(finalData);
+            setUIState('success');
         }
 
         function displayResults(data) {
-            console.log("AI로부터 받은 데이터:", JSON.stringify(data, null, 2));
+            console.log("최종 데이터:", JSON.stringify(data, null, 2));
 
             const dailyKeys = Object.keys(data.daily_summary);
             const formattedDailyData = dailyKeys.map(day => ({
@@ -172,7 +211,7 @@
                 subject: subject,
                 total_time_minutes: parseInt(data.subject_summary[subject], 10)
             }));
-
+            
             const dailyCtx = document.getElementById('daily-chart').getContext('2d');
             if (dailyChartInstance) dailyChartInstance.destroy();
             dailyChartInstance = new Chart(dailyCtx, createChartConfig('bar', formattedDailyData, 'day', 'time_minutes', '분'));
@@ -201,7 +240,45 @@
             
             summaryElement.innerHTML = finalSummary;
         }
-        
+
+        // --- 기타 유틸리티 함수 ---
+
+        // (신규) 총평 텍스트만 복사하는 함수
+        function copySummaryText() {
+            const textToCopy = summaryElement.innerText;
+            navigator.clipboard.writeText(textToCopy).then(() => {
+                alert('총평 내용이 클립보드에 복사되었습니다!');
+            }).catch(err => {
+                console.error('클립보드 복사 실패:', err);
+                alert('복사에 실패했습니다.');
+            });
+        }
+
+        function setUIState(state, msg = '') {
+            loader.style.display = state === 'loading' ? 'flex' : 'none';
+            verificationSection.classList.toggle('hidden', state !== 'verifying');
+            resultSection.classList.toggle('hidden', state !== 'success');
+            errorMessage.classList.toggle('hidden', state !== 'error');
+            errorMessage.innerHTML = msg;
+            analyzeButton.disabled = state === 'loading' || state === 'verifying';
+            analyzeButton.innerText = state === 'loading' ? '분석 중...' : 'AI 분석 시작!';
+        }
+
+        async function callGeminiAPI(base64ImageArray) {
+            const functionUrl = '/.netlify/functions/analyze';
+            const payload = { images: base64ImageArray };
+            const response = await fetch(functionUrl, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            });
+            if (!response.ok) {
+                const errorData = await response.json();
+                throw new Error(errorData.message || `서버 오류: ${response.status}`);
+            }
+            return await response.json();
+        }
+
         function createChartConfig(type, data, labelKey, dataKey, unit) {
             const backgroundPlugin = {
                 id: 'customCanvasBackgroundColor',
@@ -214,10 +291,8 @@
                     ctx.restore();
                 }
             };
-
             const labels = data.map(item => item[labelKey]);
             const chartData = data.map(item => item[dataKey]);
-
             const config = {
                 type: type,
                 data: {
@@ -229,9 +304,7 @@
                     }]
                 },
                 options: {
-                    animation: {
-                        duration: 0 
-                    },
+                    animation: { duration: 0 },
                     responsive: true,
                     maintainAspectRatio: true,
                     plugins: {
@@ -241,7 +314,7 @@
                                 if (unit === '%') {
                                     const sum = ctx.chart.data.datasets[0].data.reduce((a, b) => a + b, 0);
                                     return sum === 0 ? '0%' : ((value * 100) / sum).toFixed(1) + "%";
-                                }
+                                 }
                                 return value + '분';
                             },
                             color: '#fff', font: { weight: 'bold', size: 14 }
@@ -250,21 +323,17 @@
                 },
                 plugins: [ChartDataLabels, backgroundPlugin]
             };
-            
             if (type === 'bar') {
                 config.options.scales = { y: { beginAtZero: true } };
                 config.options.plugins.legend.display = false;
             }
-            
             return config;
         }
 
         async function exportReport(action) {
             const reportContent = document.getElementById('result-content'); 
             const buttons = document.getElementById('export-buttons');
-
             buttons.style.display = 'none'; 
-
             try {
                 const canvas = await html2canvas(reportContent, {
                     onclone: (document) => {
@@ -284,7 +353,6 @@
                     scale: 2
                 });
                 const dataUrl = canvas.toDataURL('image/png');
-
                 if (action === 'download') {
                     const link = document.createElement('a');
                     link.href = dataUrl;
