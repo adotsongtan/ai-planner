@@ -17,22 +17,16 @@ exports.handler = async function (event) {
 
         const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent?key=${apiKey}`;
         
-        const promptText = const promptText = `너는 스터디 플래너 분석 전문가야. 여러 장의 플래너 사진들을 보고, 다음 정보를 추출해서 JSON 형식으로 반환해줘.
+        const promptText = `너는 스터디 플래너 분석 전문가야. 여러 장의 플래너 사진들을 보고, 다음 정보를 추출해서 JSON 형식으로 반환해줘.
 
-**가장 중요한 분석 규칙:**
-1.  **시간 계산 (최우선 규칙):** 타임 테이블에서 색칠된 **한 칸은 정확히 10분**으로 계산해야 해.
-2.  **색깔 규칙:** '파란색 🔵 = 영어', '연두색 🟢 = 과탐', '노란색 🟡 = 수학'.
-3.  **핑크색 🌸 규칙 (국어/사탐 구분):** 'STUDY & TODAY' 목록을 참고해서 국어와 사탐을 구분해줘.
+**분석 규칙:**
+1.  색칠된 한 칸은 **정확히 10분**으로 계산해.
+2.  '파란색=영어', '연두색=과탐', '노란색=수학' 이고, 핑크색은 'STUDY & TODAY' 목록을 보고 국어와 사탐을 구분해줘.
 
 **추출할 정보:**
 1.  'daily_summary': 요일별 총 공부 시간을 분 단위로 알려줘. ({"토": 190, "일": 200, ...} 형식)
 2.  'subject_summary': 과목별 주간 총 공부 시간을 분 단위로 알려줘. ({"영어": 830, "국어": 300, ...} 형식)
-3.  'weekly_summary': **아래 총평 템플릿의 대괄호([]) 안 내용을 채우지 말고, [PLACEHOLDER] 형식 그대로 반환해줘. 절대로 숫자를 직접 계산해서 넣지 마.**
-
----
-총평 템플릿:
-안녕하세요! ☀️ 이번 주 학생의 학습 플래너를 분석한 리포트입니다.<br><br>이번 한 주간 총 학습 시간은 [TOTAL_TIME]분으로, 하루 평균 약 [AVG_TIME]분씩 꾸준히 학습을 진행하며 매우 성실한 모습을 보여주었어요. 💯 특히 주말에도 쉬지 않고 학습 흐름을 이어간 점이 정말 돋보입니다! 👍<br><br>과목별 학습 시간 분포를 보면 [SUBJECT_DETAILS] 주요 과목에 시간을 균형 있게 투자하며 안정적인 학습 패턴을 만들어가고 있어요. 💖<br><br>전반적으로 계획에 따라 성실하게 학습 목표를 달성한, 매우 칭찬할 만한 한 주였습니다. 👏<br><br>다음 주에도 지금처럼 꾸준한 모습을 이어나갈 수 있도록 많은 격려 부탁드립니다! 🔥
----`;
+3.  'weekly_summary': 위 계산 결과를 바탕으로, 따뜻하고 친절한 말투로 상세한 주간 총평을 자유롭게 작성해줘. 문단 사이에는 <br><br>을 넣어 가독성을 높여줘.`;
 
         const parts = [{ text: promptText }];
         images.forEach(imgData => parts.push({ inlineData: { mimeType: "image/jpeg", data: imgData } }));
