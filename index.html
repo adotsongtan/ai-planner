@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>📈AI 주간 학습 리포트📈</title>
+    <title>📊AI 주간 학습 리포트📊</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.2.0"></script>
@@ -41,23 +41,20 @@
             AI 분석 시작!
         </button>
 
-        <div id="verification-section" class="mt-8 hidden">
-            <h2 class="text-2xl font-extrabold text-gray-800 mb-4">🤖 AI 분석 결과 (검토 및 수정)</h2>
-            <p class="text-gray-600 mb-6">AI가 분석한 시간입니다. 실제와 다른 부분이 있다면 직접 수정하고 '리포트 생성' 버튼을 눌러주세요.</p>
-            
-            <div id="verification-form" class="space-y-4">
-                </div>
+        <div id="result-container" class="mt-8 hidden">
+            <div id="verification-section" class="mb-8">
+                <h2 class="text-2xl font-extrabold text-gray-800 mb-4">🤖 AI 분석 결과 (검토 및 수정)</h2>
+                <p class="text-gray-600 mb-6">AI가 분석한 시간입니다. 실제와 다른 부분이 있다면 직접 수정하고 아래 '수정사항 반영하기' 버튼을 눌러주세요.</p>
+                <div id="verification-form" class="space-y-4 p-4 bg-gray-50 rounded-lg">
+                    </div>
+                <button id="update-report-button" class="w-full mt-6 bg-green-500 text-white font-bold py-3 px-4 rounded-lg hover:bg-green-600 transition-all">
+                    수정사항 반영하기
+                </button>
+            </div>
 
-            <button id="generate-report-button" class="w-full mt-6 bg-green-500 text-white font-bold py-3 px-4 rounded-lg hover:bg-green-600 transition-all">
-                이 내용으로 리포트 생성
-            </button>
-        </div>
-
-        <div id="result-section" class="mt-8 hidden">
-            <div id="loader" class="flex flex-col items-center justify-center py-8"><div class="loader"></div><p class="mt-4 text-gray-600">AI가 플래너를 분석하고 있어요... 🧐</p></div>
-            <div id="result-content" class="hidden">
+            <div id="result-content">
                 <div class="flex justify-between items-center mb-4">
-                    <h2 class="text-2xl font-extrabold text-gray-800">📊 주간 분석 결과</h2>
+                    <h2 class="text-2xl font-extrabold text-gray-800">📊 주간 분석 리포트</h2>
                     <div id="export-buttons"><button class="btn copy-btn" onclick="exportReport('copy')">리포트 복사</button><button class="btn download-btn" onclick="exportReport('download')">리포트 다운로드</button></div>
                 </div>
                 <div id="report-body" class="p-6 bg-gray-50 rounded-lg">
@@ -76,6 +73,8 @@
                 </div>
             </div>
         </div>
+
+        <div id="loader" class="mt-8 hidden flex-col items-center justify-center py-8"><div class="loader"></div><p class="mt-4 text-gray-600">AI가 플래너를 분석하고 있어요... 🧐</p></div>
         <div id="error-message" class="mt-4 text-center text-red-500 font-bold hidden p-4 bg-red-50 rounded-lg"></div>
     </div>
     
@@ -98,11 +97,10 @@
         const loader = document.getElementById('loader');
         const errorMessage = document.getElementById('error-message');
 
-        const verificationSection = document.getElementById('verification-section');
+        const resultContainer = document.getElementById('result-container');
         const verificationForm = document.getElementById('verification-form');
-        const generateReportButton = document.getElementById('generate-report-button');
+        const updateReportButton = document.getElementById('update-report-button');
 
-        const resultSection = document.getElementById('result-section');
         const resultContent = document.getElementById('result-content');
         const resultTableBody = document.querySelector('#result-table tbody');
         const summaryElement = document.getElementById('summary');
@@ -112,13 +110,13 @@
 
         let imagesData = [];
         let dailyChartInstance, subjectChartInstance;
-        let finalAiData = null;
+        let aiData = null;
 
         // --- 이벤트 리스너 ---
         imageUpload.addEventListener('change', handleFileSelect);
         analyzeButton.addEventListener('click', handleAnalysis);
-        generateReportButton.addEventListener('click', handleReportGeneration);
-        copySummaryButton.addEventListener('click', copySummaryText); // 총평 복사 버튼 이벤트
+        updateReportButton.addEventListener('click', updateReportFromInputs); // ★★★ 버튼 이벤트 변경
+        copySummaryButton.addEventListener('click', copySummaryText);
         document.getElementById('closeModal').onclick = () => { modal.style.display = "none"; };
         window.onclick = (event) => { if (event.target == modal) modal.style.display = "none"; };
 
@@ -129,7 +127,6 @@
             if (!files || files.length === 0) return;
             previewGrid.innerHTML = '';
             imagesData = [];
-            
             Array.from(files).forEach(file => {
                 const reader = new FileReader();
                 reader.onload = (event) => {
@@ -149,6 +146,7 @@
             analyzeButton.disabled = false;
         }
 
+        // ★★★ 1. AI 분석 후, 검토 폼과 초기 리포트를 동시에 표시
         async function handleAnalysis() {
             if (imagesData.length === 0) {
                  alert('먼저 이미지를 업로드해주세요.');
@@ -157,9 +155,10 @@
             setUIState('loading');
             try {
                 const result = await callGeminiAPI(imagesData);
-                finalAiData = result; 
-                populateVerificationForm(result); 
-                setUIState('verifying');
+                aiData = result; 
+                populateVerificationForm(result);
+                displayResults(result); // ★★★ 최초 리포트 바로 생성
+                setUIState('review'); // ★★★ 새 UI 상태로 변경
             } catch (error) {
                 console.error('API 호출 오류:', error);
                 setUIState('error', error.message);
@@ -167,20 +166,20 @@
         }
         
         function populateVerificationForm(data) {
-            let formHtml = '<div><h3 class="font-bold text-lg mb-2">과목별 시간 (분)</h3>';
+            let formHtml = '<h3 class="font-bold text-lg mb-2 text-gray-800">과목별 시간 (분)</h3>';
             for (const subject in data.subject_summary) {
                 formHtml += `
-                    <div class="flex items-center justify-between py-2 border-b">
+                    <div class="flex items-center justify-between py-2 border-b last:border-b-0">
                         <label for="verify-${subject}" class="text-gray-700 font-semibold">${subject}</label>
                         <input type="number" id="verify-${subject}" class="w-24 text-right p-1 border rounded" value="${data.subject_summary[subject]}">
                     </div>
                 `;
             }
-            formHtml += '</div>';
             verificationForm.innerHTML = formHtml;
         }
 
-        function handleReportGeneration() {
+        // ★★★ 2. '수정사항 반영' 버튼 클릭 시, 리포트 업데이트
+        function updateReportFromInputs() {
             const correctedSubjectSummary = {};
             const inputs = verificationForm.querySelectorAll('input');
             inputs.forEach(input => {
@@ -188,17 +187,18 @@
                 correctedSubjectSummary[subject] = parseInt(input.value, 10) || 0;
             });
             
-            const finalData = {
-                ...finalAiData,
+            const updatedData = {
+                ...aiData,
                 subject_summary: correctedSubjectSummary
             };
 
-            displayResults(finalData);
-            setUIState('success');
+            displayResults(updatedData); // ★★★ 수정된 데이터로 리포트 다시 그리기
+            alert('리포트가 수정된 내용으로 업데이트되었습니다!');
         }
 
+        // 3. 리포트 화면을 그리는 최종 함수
         function displayResults(data) {
-            console.log("최종 데이터:", JSON.stringify(data, null, 2));
+            console.log("리포트 생성용 데이터:", JSON.stringify(data, null, 2));
 
             const dailyKeys = Object.keys(data.daily_summary);
             const formattedDailyData = dailyKeys.map(day => ({
@@ -243,7 +243,6 @@
 
         // --- 기타 유틸리티 함수 ---
 
-        // (신규) 총평 텍스트만 복사하는 함수
         function copySummaryText() {
             const textToCopy = summaryElement.innerText;
             navigator.clipboard.writeText(textToCopy).then(() => {
@@ -254,13 +253,13 @@
             });
         }
 
+        // ★★★ 4. UI 상태 관리 함수 수정
         function setUIState(state, msg = '') {
-            loader.style.display = state === 'loading' ? 'flex' : 'none';
-            verificationSection.classList.toggle('hidden', state !== 'verifying');
-            resultSection.classList.toggle('hidden', state !== 'success');
+            loader.classList.toggle('hidden', state !== 'loading');
+            resultContainer.classList.toggle('hidden', state !== 'review');
             errorMessage.classList.toggle('hidden', state !== 'error');
             errorMessage.innerHTML = msg;
-            analyzeButton.disabled = state === 'loading' || state === 'verifying';
+            analyzeButton.disabled = state === 'loading' || state === 'review';
             analyzeButton.innerText = state === 'loading' ? '분석 중...' : 'AI 분석 시작!';
         }
 
@@ -371,6 +370,7 @@
             modal.style.display = "flex";
         }
 
+        // 초기 상태 설정
         analyzeButton.disabled = true;
     </script>
 </body>
