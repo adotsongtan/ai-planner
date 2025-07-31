@@ -45,7 +45,7 @@
             <div id="verification-section" class="mb-8">
                 <h2 class="text-2xl font-extrabold text-gray-800 mb-4">🤖 AI 분석 결과 (검토 및 수정)</h2>
                 <p class="text-gray-600 mb-6">AI가 분석한 시간입니다. 실제와 다른 부분이 있다면 직접 수정하고 아래 '수정사항 반영하기' 버튼을 눌러주세요.</p>
-                <div id="verification-form" class="space-y-4 p-4 bg-gray-50 rounded-lg">
+                <div id="verification-form" class="space-y-4 p-4 bg-gray-50 rounded-lg grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-4">
                     </div>
                 <button id="update-report-button" class="w-full mt-6 bg-green-500 text-white font-bold py-3 px-4 rounded-lg hover:bg-green-600 transition-all">
                     수정사항 반영하기
@@ -58,11 +58,14 @@
                     <div id="export-buttons"><button class="btn copy-btn" onclick="exportReport('copy')">리포트 복사</button><button class="btn download-btn" onclick="exportReport('download')">리포트 다운로드</button></div>
                 </div>
                 <div id="report-body" class="p-6 bg-gray-50 rounded-lg">
-                    <div class="mb-8"><h3 class="font-bold mb-2 text-center text-lg">주간 총 공부 시간</h3><canvas id="daily-chart"></canvas></div>
-                    <div class="grid md:grid-cols-2 gap-8">
-                        <div><h3 class="font-bold mb-2 text-center text-lg">📚 주간 학습 요약</h3><table id="result-table" class="w-full text-sm mt-4"><thead class="text-left bg-gray-200"><tr><th class="p-2 rounded-tl-lg">과목</th><th class="p-2 rounded-tr-lg">총 시간(분)</th></tr></thead><tbody></tbody></table></div>
-                        <div><h3 class="font-bold mb-2 text-center text-lg">과목별 공부 비율</h3><canvas id="subject-chart"></canvas></div>
+                    <div id="charts-and-tables-area">
+                        <div class="mb-8"><h3 class="font-bold mb-2 text-center text-lg">주간 총 공부 시간</h3><canvas id="daily-chart"></canvas></div>
+                        <div class="grid md:grid-cols-2 gap-8">
+                            <div><h3 class="font-bold mb-2 text-center text-lg">📚 주간 학습 요약</h3><table id="result-table" class="w-full text-sm mt-4"><thead class="text-left bg-gray-200"><tr><th class="p-2 rounded-tl-lg">과목</th><th class="p-2 rounded-tr-lg">총 시간(분)</th></tr></thead><tbody></tbody></table></div>
+                            <div><h3 class="font-bold mb-2 text-center text-lg">과목별 공부 비율</h3><canvas id="subject-chart"></canvas></div>
+                        </div>
                     </div>
+
                     <div class="mt-8 bg-blue-50 border-l-4 border-blue-400 p-6 rounded-r-lg">
                         <div class="flex justify-between items-center mb-2">
                             <h3 class="font-bold text-blue-800 text-lg">✨ AI 주간 총평</h3>
@@ -115,8 +118,8 @@
         // --- 이벤트 리스너 ---
         imageUpload.addEventListener('change', handleFileSelect);
         analyzeButton.addEventListener('click', handleAnalysis);
-        updateReportButton.addEventListener('click', updateReportFromInputs); // ★★★ 버튼 이벤트 변경
-        copySummaryButton.addEventListener('click', copySummaryText);
+        updateReportButton.addEventListener('click', updateReportFromInputs);
+        copySummaryButton.addEventListener('click', copySummaryText); 
         document.getElementById('closeModal').onclick = () => { modal.style.display = "none"; };
         window.onclick = (event) => { if (event.target == modal) modal.style.display = "none"; };
 
@@ -146,7 +149,6 @@
             analyzeButton.disabled = false;
         }
 
-        // ★★★ 1. AI 분석 후, 검토 폼과 초기 리포트를 동시에 표시
         async function handleAnalysis() {
             if (imagesData.length === 0) {
                  alert('먼저 이미지를 업로드해주세요.');
@@ -157,46 +159,67 @@
                 const result = await callGeminiAPI(imagesData);
                 aiData = result; 
                 populateVerificationForm(result);
-                displayResults(result); // ★★★ 최초 리포트 바로 생성
-                setUIState('review'); // ★★★ 새 UI 상태로 변경
+                displayResults(result); 
+                setUIState('review'); 
             } catch (error) {
                 console.error('API 호출 오류:', error);
                 setUIState('error', error.message);
             }
         }
         
+        // ★★★ 1. 검토 폼에 과목 + 요일 입력창 모두 생성
         function populateVerificationForm(data) {
-            let formHtml = '<h3 class="font-bold text-lg mb-2 text-gray-800">과목별 시간 (분)</h3>';
+            let subjectHtml = '<div><h3 class="font-bold text-lg mb-2 text-gray-800">과목별 시간 (분)</h3>';
             for (const subject in data.subject_summary) {
-                formHtml += `
+                subjectHtml += `
                     <div class="flex items-center justify-between py-2 border-b last:border-b-0">
-                        <label for="verify-${subject}" class="text-gray-700 font-semibold">${subject}</label>
-                        <input type="number" id="verify-${subject}" class="w-24 text-right p-1 border rounded" value="${data.subject_summary[subject]}">
+                        <label for="verify-subject-${subject}" class="text-gray-700 font-semibold">${subject}</label>
+                        <input type="number" id="verify-subject-${subject}" class="w-24 text-right p-1 border rounded" value="${data.subject_summary[subject]}">
                     </div>
                 `;
             }
-            verificationForm.innerHTML = formHtml;
+            subjectHtml += '</div>';
+            
+            let dailyHtml = '<div><h3 class="font-bold text-lg mb-2 text-gray-800">요일별 시간 (분)</h3>';
+            for (const day in data.daily_summary) {
+                dailyHtml += `
+                    <div class="flex items-center justify-between py-2 border-b last:border-b-0">
+                        <label for="verify-day-${day}" class="text-gray-700 font-semibold">${day}</label>
+                        <input type="number" id="verify-day-${day}" class="w-24 text-right p-1 border rounded" value="${data.daily_summary[day]}">
+                    </div>
+                `;
+            }
+            dailyHtml += '</div>';
+
+            verificationForm.innerHTML = subjectHtml + dailyHtml;
         }
 
-        // ★★★ 2. '수정사항 반영' 버튼 클릭 시, 리포트 업데이트
+        // ★★★ 2. '수정사항 반영' 시 과목 + 요일 데이터 모두 읽어오기
         function updateReportFromInputs() {
             const correctedSubjectSummary = {};
-            const inputs = verificationForm.querySelectorAll('input');
-            inputs.forEach(input => {
-                const subject = input.id.replace('verify-', '');
+            const subjectInputs = verificationForm.querySelectorAll('input[id^="verify-subject-"]');
+            subjectInputs.forEach(input => {
+                const subject = input.id.replace('verify-subject-', '');
                 correctedSubjectSummary[subject] = parseInt(input.value, 10) || 0;
             });
             
+            const correctedDailySummary = {};
+            const dayInputs = verificationForm.querySelectorAll('input[id^="verify-day-"]');
+            dayInputs.forEach(input => {
+                const day = input.id.replace('verify-day-', '');
+                correctedDailySummary[day] = parseInt(input.value, 10) || 0;
+            });
+
             const updatedData = {
                 ...aiData,
-                subject_summary: correctedSubjectSummary
+                subject_summary: correctedSubjectSummary,
+                daily_summary: correctedDailySummary
             };
 
-            displayResults(updatedData); // ★★★ 수정된 데이터로 리포트 다시 그리기
+            displayResults(updatedData);
             alert('리포트가 수정된 내용으로 업데이트되었습니다!');
         }
 
-        // 3. 리포트 화면을 그리는 최종 함수
         function displayResults(data) {
             console.log("리포트 생성용 데이터:", JSON.stringify(data, null, 2));
 
@@ -253,7 +276,6 @@
             });
         }
 
-        // ★★★ 4. UI 상태 관리 함수 수정
         function setUIState(state, msg = '') {
             loader.classList.toggle('hidden', state !== 'loading');
             resultContainer.classList.toggle('hidden', state !== 'review');
@@ -298,7 +320,7 @@
                     labels: labels,
                     datasets: [{
                         data: chartData,
-                        backgroundColor: ['#36a2eb', '#ff6384', '#4bc0c0', '#ffce56', '#9966ff', '#ff9f40'],
+                        backgroundColor: ['#36a2eb', '#ff6384', '#4bc0c0', '#ffce56', '#9966ff', '#ff9f40', '#e8c3b9'],
                         hoverOffset: 4
                     }]
                 },
@@ -330,11 +352,9 @@
         }
 
         async function exportReport(action) {
-            const reportContent = document.getElementById('result-content'); 
-            const buttons = document.getElementById('export-buttons');
-            buttons.style.display = 'none'; 
+            const captureArea = document.getElementById('charts-and-tables-area'); 
             try {
-                const canvas = await html2canvas(reportContent, {
+                const canvas = await html2canvas(captureArea, {
                     onclone: (document) => {
                         Array.from(document.querySelectorAll('canvas')).forEach(canvas => {
                             const chartInstance = Chart.getChart(canvas.id);
@@ -348,20 +368,21 @@
                             }
                         });
                     },
-                    backgroundColor: '#ffffff',
+                    backgroundColor: '#f9fafb',
                     scale: 2
                 });
                 const dataUrl = canvas.toDataURL('image/png');
                 if (action === 'download') {
                     const link = document.createElement('a');
                     link.href = dataUrl;
-                    link.download = '주간_학습_리포트.png';
+                    link.download = '주간_학습_리포트_차트.png';
                     link.click();
                 } else if (action === 'copy') {
                     openCopyModalWithDataUrl(dataUrl);
                 }
-            } finally {
-                buttons.style.display = 'block'; 
+            } catch(err) {
+                 console.error("리포트 생성 오류:", err);
+                 alert("리포트 이미지 생성에 실패했습니다.");
             }
         }
 
