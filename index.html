@@ -113,12 +113,12 @@
 
         let imagesData = [];
         let dailyChartInstance, subjectChartInstance;
-        let aiData = null;
+        let currentData = null; // ★★★ aiData -> currentData 로 이름 변경
 
         // --- 이벤트 리스너 ---
         imageUpload.addEventListener('change', handleFileSelect);
         analyzeButton.addEventListener('click', handleAnalysis);
-        updateReportButton.addEventListener('click', updateReportFromInputs);
+        updateReportButton.addEventListener('click', updateReportFromInputs); 
         copySummaryButton.addEventListener('click', copySummaryText); 
         document.getElementById('closeModal').onclick = () => { modal.style.display = "none"; };
         window.onclick = (event) => { if (event.target == modal) modal.style.display = "none"; };
@@ -157,7 +157,7 @@
             setUIState('loading');
             try {
                 const result = await callGeminiAPI(imagesData);
-                aiData = result; 
+                currentData = result; 
                 populateVerificationForm(result);
                 displayResults(result); 
                 setUIState('review'); 
@@ -167,7 +167,6 @@
             }
         }
         
-        // ★★★ 1. 검토 폼에 과목 + 요일 입력창 모두 생성
         function populateVerificationForm(data) {
             let subjectHtml = '<div><h3 class="font-bold text-lg mb-2 text-gray-800">과목별 시간 (분)</h3>';
             for (const subject in data.subject_summary) {
@@ -194,8 +193,11 @@
             verificationForm.innerHTML = subjectHtml + dailyHtml;
         }
 
-        // ★★★ 2. '수정사항 반영' 시 과목 + 요일 데이터 모두 읽어오기
-        function updateReportFromInputs() {
+        // ★★★ '수정사항 반영' 버튼의 새 로직 ★★★
+        async function updateReportFromInputs() {
+            updateReportButton.disabled = true;
+            updateReportButton.innerText = '총평 업데이트 중...';
+
             const correctedSubjectSummary = {};
             const subjectInputs = verificationForm.querySelectorAll('input[id^="verify-subject-"]');
             subjectInputs.forEach(input => {
@@ -210,17 +212,40 @@
                 correctedDailySummary[day] = parseInt(input.value, 10) || 0;
             });
 
-            const updatedData = {
-                ...aiData,
+            // 먼저 차트와 표는 즉시 업데이트
+            const instantlyUpdatedData = {
+                ...currentData,
                 subject_summary: correctedSubjectSummary,
                 daily_summary: correctedDailySummary
             };
+            displayResults(instantlyUpdatedData, false); // 총평 부분 제외하고 업데이트
 
-            displayResults(updatedData);
-            alert('리포트가 수정된 내용으로 업데이트되었습니다!');
+            try {
+                // 새로운 서버 함수를 호출해서 총평만 다시 받아옴
+                const response = await fetch('/.netlify/functions/regenerate-summary', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(instantlyUpdatedData)
+                });
+                if (!response.ok) throw new Error('총평 재작성에 실패했습니다.');
+                
+                const { weekly_summary } = await response.json();
+
+                currentData.weekly_summary = weekly_summary; // 새로 받은 총평으로 교체
+                summaryElement.innerHTML = weekly_summary; // 화면에 새 총평 표시
+                alert('리포트가 수정된 내용으로 업데이트되었습니다!');
+
+            } catch (error) {
+                console.error("총평 업데이트 오류:", error);
+                alert(error.message);
+            } finally {
+                updateReportButton.disabled = false;
+                updateReportButton.innerText = '수정사항 반영하기';
+            }
         }
 
-        function displayResults(data) {
+        // isFullUpdate 파라미터 추가
+        function displayResults(data, isFullUpdate = true) {
             console.log("리포트 생성용 데이터:", JSON.stringify(data, null, 2));
 
             const dailyKeys = Object.keys(data.daily_summary);
@@ -252,16 +277,19 @@
             tableHtml += `<tr class="font-bold bg-gray-200"><td class="p-2 rounded-bl-lg">총합</td><td class="p-2 rounded-br-lg">${totalMinutes}</td></tr>`;
             resultTableBody.innerHTML = tableHtml;
 
-            let finalSummary = '';
-            const summaryData = data.weekly_summary;
+            // 최초 로드 시에만 총평을 그림
+            if (isFullUpdate) {
+                let finalSummary = '';
+                const summaryData = data.weekly_summary;
 
-            if (typeof summaryData === 'object' && summaryData !== null) {
-                finalSummary = Object.values(summaryData).join('<br><br>');
-            } else {
-                finalSummary = summaryData;
+                if (typeof summaryData === 'object' && summaryData !== null) {
+                    finalSummary = Object.values(summaryData).join('<br><br>');
+                } else {
+                    finalSummary = summaryData;
+                }
+                
+                summaryElement.innerHTML = finalSummary;
             }
-            
-            summaryElement.innerHTML = finalSummary;
         }
 
         // --- 기타 유틸리티 함수 ---
